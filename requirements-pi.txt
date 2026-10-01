@@ -1,0 +1,12 @@
+# Raspberry Pi 5 (Raspberry Pi OS Bookworm, 64-bit)
+# Create the venv WITH system packages so picamera2, gpiozero and lgpio from apt are visible:
+#   python3 -m venv --system-site-packages .venv
+numpy
+opencv-python
+mediapipe
+pygame
+evdev
+ai-edge-litert      # TFLite runtime for the eye-state model (successor to tflite-runtime)
+matplotlib
+pytest
+# From apt, not pip:  sudo apt install -y python3-picamera2 python3-gpiozero python3-lgpio

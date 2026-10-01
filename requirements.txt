@@ -1,0 +1,8 @@
+# Laptop / development (sim mode, face window, camera test with a webcam)
+numpy
+opencv-python
+mediapipe
+pygame
+pynput
+matplotlib
+pytest

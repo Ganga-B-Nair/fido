@@ -1,0 +1,4 @@
+# For training on a laptop or Colab (not the Pi)
+tensorflow>=2.15
+opencv-python
+numpy
