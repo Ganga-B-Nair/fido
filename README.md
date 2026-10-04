@@ -91,7 +91,7 @@ Notes:
 ## Run options
 
 ```
-python -m fido.main [--sim] [--demo] [--no-face] [--no-camera]
+python -m fido.main [--sim] [--demo] [--no-face] [--no-camera] [--no-camera-view]
                     [--algorithm ucb|epsilon] [--fresh] [--speed 20] [--max-nudges N] [-v]
 ```
 

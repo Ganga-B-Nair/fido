@@ -48,7 +48,7 @@ class ActuationConfig:
     buzzer_pin: int = 22
     servo_pin: int = 18
     show_face: bool = True
-    face_size: tuple = (480, 320)
+    face_size: tuple = (480, 360)
 
 
 @dataclass

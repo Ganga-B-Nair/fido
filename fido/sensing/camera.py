@@ -195,10 +195,11 @@ class CameraSensor:
         self.cfg = cfg
         self._lock = threading.Lock()
         self._latest = {"face_present": None, "eyes_closed_prob": None, "gaze_away": None,
-                        "ear": None, "frame": None}
+                        "ear": None, "eye_pts": None, "frame": None}
         self._stop = threading.Event()
         self._thread = None
         self.model = EyeStateModel(cfg)
+        self._latest["eye_model"] = "CNN" if self.model.available else "EAR"
 
     def start(self) -> "CameraSensor":
         self._mesh = FaceLandmarks(self.cfg)
@@ -224,7 +225,8 @@ class CameraSensor:
         h, w = rgb.shape[:2]
         lm = self._mesh.detect(rgb)
         if lm is None:
-            return {"face_present": False, "eyes_closed_prob": None, "gaze_away": None, "ear": None}
+            return {"face_present": False, "eyes_closed_prob": None, "gaze_away": None, "ear": None,
+                    "eye_pts": None}
         P = np.array([[p.x * w, p.y * h] for p in lm], dtype=np.float32)
 
         ear = (eye_aspect_ratio(P[LEFT_EYE]) + eye_aspect_ratio(P[RIGHT_EYE])) / 2
@@ -244,7 +246,8 @@ class CameraSensor:
         yaw_ratio = min(dl, dr) / (max(dl, dr) + 1e-6)
         gaze_away = yaw_ratio < 0.35
 
-        return {"face_present": True, "eyes_closed_prob": closed, "gaze_away": gaze_away, "ear": ear}
+        return {"face_present": True, "eyes_closed_prob": closed, "gaze_away": gaze_away, "ear": ear,
+                "eye_pts": np.concatenate([P[LEFT_EYE], P[RIGHT_EYE]])}  # for the on-screen overlay
 
     def _run(self):
         period = 1.0 / self.cfg.fps

@@ -3,7 +3,8 @@
 Run from the project root:
     python -m fido.main --sim            # no hardware, simulated user, fast clock (anyone, any laptop)
     python -m fido.main --sim --no-face  # same, terminal only
-    python -m fido.main --demo           # real sensors, short thresholds for a live demo
+    python -m fido.main --demo           # real sensors, short thresholds, face + live camera panel
+    python -m fido.main --demo --no-camera-view   # same, face only
     python -m fido.main                  # real sensors, normal thresholds
 
 Each tick:
@@ -55,11 +56,11 @@ class SimClock:
 
 
 def build_sensors(cfg: Config, args):
-    """Returns read(now) -> SensorReading, plus cleanup and an optional sim user."""
+    """Returns read(now) -> SensorReading, cleanup, an optional sim user, and the camera (or None)."""
     if args.sim:
         from fido.sensing.sim import SimulatedUser
         user = SimulatedUser(seed=args.seed)
-        return (lambda now: user.step(now, cfg.tick_s)), (lambda: None), user
+        return (lambda now: user.step(now, cfg.tick_s)), (lambda: None), user, None
 
     from fido.sensing.activity import ActivitySensor
     activity = ActivitySensor().start()
@@ -84,7 +85,21 @@ def build_sensors(cfg: Config, args):
         if camera:
             camera.stop()
 
-    return read, cleanup, None
+    return read, cleanup, None, camera
+
+
+def wait_and_render(clock, face, state, status, camera, fps: float = 25.0):
+    """Sleep until the next logic tick, redrawing the window meanwhile so video and animations
+    stay smooth (the rule engine and bandit only need to run every tick_s)."""
+    if face is None or isinstance(clock, SimClock):
+        if face:
+            face.update(state, status, None)
+        clock.sleep()
+        return
+    end = time.time() + clock.tick
+    while time.time() < end and not face.quit_requested:
+        face.update(state, status, camera.latest() if camera else None)
+        time.sleep(1.0 / fps)
 
 
 def run(args):
@@ -95,7 +110,7 @@ def run(args):
         cfg.agent.state_path = cfg.agent.state_path.with_name("bandit_state_sim.json")
         cfg.agent.log_path = cfg.agent.log_path.with_name("outcomes_sim.csv")
 
-    read, cleanup_sensors, sim_user = build_sensors(cfg, args)
+    read, cleanup_sensors, sim_user, camera = build_sensors(cfg, args)
     clock = SimClock(cfg.tick_s, args.speed) if args.sim else RealClock(cfg.tick_s)
 
     fusion = Fusion(cfg.sensing, window=cfg.rules.smoothing_window)
@@ -109,7 +124,9 @@ def run(args):
     if not args.no_face:
         try:
             from fido.actuation.face import Face
-            face = Face(cfg.actuation.face_size)
+            face = Face(cfg.actuation.face_size,
+                        show_camera=camera is not None and not args.no_camera_view,
+                        closed_threshold=cfg.sensing.eyes_closed_prob_threshold)
         except Exception as e:  # noqa: BLE001
             log.warning("Face window unavailable (%s)", e)
     hw = make_hardware(cfg.actuation, force_mock=args.sim)
@@ -144,11 +161,9 @@ def run(args):
                 if sim_user:
                     sim_user.receive_nudge(nudge, now)
 
-            if face:
-                face.update(state, rules.last_reason)
-                if face.quit_requested:
-                    break
-            clock.sleep()
+            wait_and_render(clock, face, state, rules.last_reason, camera)
+            if face and face.quit_requested:
+                break
     except KeyboardInterrupt:
         pass
     finally:
@@ -166,6 +181,8 @@ def main():
     p.add_argument("--demo", action="store_true", help="short thresholds for a live demo")
     p.add_argument("--no-face", action="store_true", help="don't open the pygame face window")
     p.add_argument("--no-camera", action="store_true", help="keyboard/mouse fallback only")
+    p.add_argument("--no-camera-view", action="store_true",
+                   help="use the camera but hide the live video panel")
     p.add_argument("--algorithm", choices=["ucb", "epsilon"])
     p.add_argument("--fresh", action="store_true", help="ignore saved policy, start learning from zero")
     p.add_argument("--speed", type=float, default=20.0, help="sim speed multiplier")
